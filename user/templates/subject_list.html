@@ -1,0 +1,88 @@
+<h2>Subjects</h2>
+<p>Logged in as: {{ request.user.username }}</p>
+<a href="{% url 'user_logout' %}">Logout</a>
+<hr>
+
+<h3>Available Subjects</h3>
+
+<table>
+    <thead>
+        <tr>
+            <th>Subject ID</th>
+            <th>Subject Name</th>
+            <th>Semester</th>
+            <th>Academic Year</th>
+            <th>Available Seats</th>
+            <th>Status</th>
+            <th>Action</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for subject in subjects %}
+<tr>
+    <td>{{ subject.subject_id }}</td>
+    <td>{{ subject.name }}</td>
+    <td>{{ subject.get_semester_display }}</td>
+    <td>{{ subject.academic_year }}</td>
+    <td>{{ subject.max_students }}</td>
+    <td>
+        {% if subject.max_students > 0 %}
+            Open for Registration
+        {% else %}
+            Full
+        {% endif %}
+    </td>
+    <td>
+        {% if subject in registered_subjects %}
+            <a href="{% url 'unregister_subject' subject.id %}">Unregister</a>
+        {% elif subject.max_students > 0 %}
+            <a href="{% url 'register_subject' subject.id %}">Register</a>
+        {% else %}
+            <button disabled>Registration Closed</button>
+        {% endif %}
+    </td>
+</tr>
+{% endfor %}
+    </tbody>
+</table>
+
+<h3>Your Registered Subjects</h3>
+
+<table>
+    <thead>
+        <tr>
+            <th>Subject ID</th>
+            <th>Subject Name</th>
+            <th>Semester</th>
+            <th>Academic Year</th>
+            <th>Status</th>
+            <th>Action</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% if registered_subjects %}
+            {% for subject in registered_subjects %}
+            <tr>
+                <td>{{ subject.subject_id }}</td>
+                <td>{{ subject.name }}</td>
+                <td>{{ subject.get_semester_display }}</td>
+                <td>{{ subject.academic_year }}</td>
+                <td>
+                    {% if subject.max_students > 0 %}
+                        Open for Registration
+                    {% else %}
+                        Full
+                    {% endif %}
+                </td>
+                <td>
+                    <a href="{% url 'unregister_subject' subject.id %}">Unregister</a>
+                </td>
+            </tr>
+            {% endfor %}
+        {% else %}
+            <tr>
+                <td colspan="6">You have not registered for any subjects yet.</td>
+            </tr>
+        {% endif %}
+    </tbody>
+</table>
