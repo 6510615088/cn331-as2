@@ -38,7 +38,7 @@ def admin_login(request):
             login(request, user)
             return redirect('admin_dashboard')
         else:
-            messages.error(request, 'Invalid credentials or not an admin')
+            messages.error(request, 'Invalid username or password or not an admin')
     return render(request, 'admin_login.html')
 
 # Admin dashboard view to show subjects and registered users
