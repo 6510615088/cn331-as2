@@ -1,33 +1,46 @@
-<h2>Admin Dashboard</h2>
-<p>Logged in as: {{ request.user.username }}</p>
-<a href="{% url 'user_logout' %}">Logout</a>
-<hr>
+<!DOCTYPE html>
+<html lang="en">
 
-<h3>Subjects and Registered Users</h3>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard</title>
+</head>
 
-<table>
-    <thead>
-        <tr>
-            <th>Subject ID</th>
-            <th>Subject Name</th>
-            <th>Registered Users</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for subject in subjects %}
-        <tr>
-            <td>{{ subject.subject_id }}</td>
-            <td>{{ subject.name }}</td>
-            <td>
-                <ul>
-                    {% for registration in subject.usersubject_set.all %}
+<body>
+    <h2>Admin Dashboard</h2>
+    <p>Logged in as: {{ request.user.username }}</p>
+    <a href="{% url 'user_logout' %}">Logout</a>
+    <hr>
+
+    <h3>Subjects and Registered Users</h3>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Subject ID</th>
+                <th>Subject Name</th>
+                <th>Registered Users</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for subject in subjects %}
+            <tr>
+                <td>{{ subject.subject_id }}</td>
+                <td>{{ subject.name }}</td>
+                <td>
+                    <ul>
+                        {% for registration in subject.usersubject_set.all %}
                         <li>{{ registration.user.username }}</li>
-                    {% empty %}
+                        {% empty %}
                         <li>No users registered</li>
-                    {% endfor %}
-                </ul>
-            </td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
+                        {% endfor %}
+                    </ul>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+
+</html>
