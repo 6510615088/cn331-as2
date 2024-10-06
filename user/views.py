@@ -65,7 +65,7 @@ def subject_list(request):
 @transaction.atomic
 def register_subject(request, subject_id):
     subject = Subject.objects.get(id=subject_id)
-
+ 
     if subject.max_students > 0:
         UserSubject.objects.create(user=request.user, subject=subject)
         subject.max_students -= 1

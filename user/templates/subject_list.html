@@ -117,7 +117,7 @@
                 <th>Semester</th>
                 <th>Academic Year</th>
                 <th>Available Seats</th>
-                <th>Status</th>
+                <th>Open for Registration</th>
                 <th>Action</th>
             </tr>
         </thead>
@@ -130,19 +130,24 @@
                 <td>{{ subject.academic_year }}</td>
                 <td>{{ subject.max_students }}</td>
                 <td>
-                    {% if subject.max_students > 0 %}
-                    Open for Registration
+                    {% if subject.open_for_registration %}
+                    Yes
                     {% else %}
-                    Full
+                    No
                     {% endif %}
                 </td>
                 <td>
                     {% if subject in registered_subjects %}
-                    <a href="{% url 'unregister_subject' subject.id %}">Unregister</a>
-                    {% elif subject.max_students > 0 %}
-                    <a href="{% url 'register_subject' subject.id %}">Register</a>
+                    <button class="btn btn-info" disabled>Already Registered</button>
+                    {% elif not subject.open_for_registration %}
+                    <button class="btn btn-secondary" disabled>Closed</button>
+                    {% elif user_subjects|length >= subject.max_students %}
+                    <button class="btn btn-secondary" disabled>Full</button>
                     {% else %}
-                    <button disabled>Registration Closed</button>
+                    <form method="post" action="{% url 'register_subject' subject.id %}">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-success">Register</button>
+                    </form>
                     {% endif %}
                 </td>
             </tr>
@@ -159,7 +164,6 @@
                 <th>Subject Name</th>
                 <th>Semester</th>
                 <th>Academic Year</th>
-                <th>Status</th>
                 <th>Action</th>
             </tr>
         </thead>
@@ -172,14 +176,10 @@
                 <td>{{ subject.get_semester_display }}</td>
                 <td>{{ subject.academic_year }}</td>
                 <td>
-                    {% if subject.max_students > 0 %}
-                    Open for Registration
-                    {% else %}
-                    Full
-                    {% endif %}
-                </td>
-                <td>
-                    <a href="{% url 'unregister_subject' subject.id %}">Unregister</a>
+                    <form method="post" action="{% url 'unregister_subject' subject.id %}">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-success">Unregister</button>
+                    </form>
                 </td>
             </tr>
             {% endfor %}
