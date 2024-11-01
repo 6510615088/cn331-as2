@@ -14,7 +14,7 @@ class UserAuthTests(TestCase):
 
     def test_login_page_accessible(self):
         """Test that the login page is accessible with a 200 status code."""
-        response = self.client.get(reverse('user_login'))  # Assuming your URL name for login is 'user_login'
+        response = self.client.get(reverse('user_login'))
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, 'login.html')
 
