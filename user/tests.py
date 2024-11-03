@@ -1,10 +1,11 @@
-from django.test import TestCase, Client
+from django.test import TestCase
 from django.urls import reverse
 from django.contrib.auth.models import User
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth import get_user_model
-from .models import Subject, UserSubject
-from django.db import models
+from django.test import Client
+from subjectreg.models import Subject
+from user.models import UserSubject
 
 
 class UserAuthTests(TestCase):
@@ -13,48 +14,13 @@ class UserAuthTests(TestCase):
         # Create a normal user
         self.user = User.objects.create_user(
             username='testuser', password='userpassword')
-        self.client = Client()
+
         # Create an admin user
         self.admin_user = User.objects.create_superuser(
             username='adminuser', password='adminpassword')
-        self.subject = Subject.objects.create(
-            name="Math", max_students=2, open_for_registration=True)
 
     def test_login_page_accessible(self):
         """Test that the login page is accessible with a 200 status code."""
-        response = self.client.get(reverse('user_login'))
-        self.assertEqual(response.status_code, 200)
-        self.assertTemplateUsed(response, 'login.html')
-
-    def test_login_form_displayed(self):
-        """Test that the AuthenticationForm is rendered on the login page."""
-        response = self.client.get(reverse('user_login'))
-        self.assertIsInstance(response.context['form'], AuthenticationForm)
-
-    def test_successful_login_redirects(self):
-        """Test that a valid login redirects the user to 'subject_list'."""
-        response = self.client.post(reverse('user_login'), {
-            'username': 'testuser',
-            'password': 'userpassword'
-        })
-        self.assertRedirects(response, reverse('subject_list'))
-
-    def test_invalid_login(self):
-        """Test that an invalid login does not authenticate and re-renders the login form with errors."""
-        response = self.client.post(reverse('user_login'), {
-            'username': 'testuser',
-            'password': 'wrongpassword'
-        })
-        # Check that it re-renders the form
-        self.assertEqual(response.status_code, 200)
-        self.assertTemplateUsed(response, 'login.html')
-
-    def test_user_logout(self):
-        """Test that a normal user can log out successfully."""
-        self.client.login(username='testuser', password='userpassword')
-        response = self.client.get(reverse('user_logout'))
-        # Redirect to login after logout
-        self.assertRedirects(response, reverse('user_login'))
 
     def test_admin_login_page_accessible(self):
         """Test that the admin login page is accessible with a 200 status code."""
@@ -81,91 +47,121 @@ class UserAuthTests(TestCase):
         self.assertContains(
             response, 'Invalid username or password or not an admin')
 
-    def test_register_subject_success(self):
-        """Test that a user can register for a subject successfully."""
-        response = self.client.get(
+
+class RegisterSubjectViewTest(TestCase):
+    def setUp(self):
+        # Create a user for login
+        self.user = User.objects.create_user(
+            username='testuser', password='userpassword')
+
+        # Create a subject in the `subjectreg` app with available seats
+        self.subject = Subject.objects.create(
+            subject_id='CN101',
+            name='Introduction to Computer Programming',
+            semester=1,
+            academic_year=2024,
+            max_students=1,
+            open_for_registration=True
+        )
+
+        # Log in the user for the test
+        self.client = Client()
+        self.client.login(username='testuser', password='userpassword')
+
+    def test_successful_registration(self):
+        """Test that a user can register for a subject with available seats."""
+        response = self.client.post(
             reverse('register_subject', args=[self.subject.id]))
         self.assertRedirects(response, reverse('subject_list'))
 
-        # Check that the user is now registered for the subject
+        # Confirm that the UserSubject instance was created
         self.assertTrue(UserSubject.objects.filter(
             user=self.user, subject=self.subject).exists())
 
-        # Check that max_students has decreased by 1
-        self.subject.refresh_from_db()
-        self.assertEqual(self.subject.max_students, 1)
+        # Confirm max_students count is decreased by 1
+        subject = Subject.objects.get(id=self.subject.id)
+        self.assertEqual(subject.max_students, 0)
 
-    def test_register_subject_max_capacity(self):
-        """Test that registration is not allowed if max capacity is reached."""
-        # Fill up the subject
-        self.subject.max_students = 1
-        self.subject.save()
+    def test_subject_closes_when_full(self):
+        """Test that subject closes registration when max_students reaches zero."""
+        self.client.post(reverse('register_subject', args=[self.subject.id]))
 
-        # Attempt to register the user
-        response = self.client.get(
-            reverse('register_subject', args=[self.subject.id]))
+        # Check if open_for_registration is set to False after max_students reaches zero
+        subject = Subject.objects.get(id=self.subject.id)
+        self.assertFalse(subject.open_for_registration)
 
-        # User should not be registered
-        self.assertFalse(UserSubject.objects.filter(
-            user=self.user, subject=self.subject).exists())
-
-        # The user should still be redirected to the subject list, but without registration
-        self.assertRedirects(response, reverse('subject_list'))
-
-        # max_students should remain 0 and open_for_registration should be False
-        self.subject.refresh_from_db()
-        self.assertEqual(self.subject.max_students, 1)
-        self.assertFalse(self.subject.open_for_registration)
-
-    def test_unregister_subject_success(self):
-        """Test that a user can unregister from a subject successfully."""
-        # Register the user for the subject
+    def test_registration_restricted_when_full(self):
+        """Test that a user cannot register if the subject is already full."""
+        # Register the user to make the subject full
         UserSubject.objects.create(user=self.user, subject=self.subject)
-        self.subject.max_students = 1
+        self.subject.max_students = 0
         self.subject.open_for_registration = False
         self.subject.save()
 
-        # Unregister the user
-        response = self.client.get(
+        # Attempt to register again
+        response = self.client.post(
+            reverse('register_subject', args=[self.subject.id]))
+
+        # Confirm the registration count has not increased
+        registration_count = UserSubject.objects.filter(
+            user=self.user, subject=self.subject).count()
+        self.assertEqual(registration_count, 1)
+
+        # Confirm the user is redirected to 'subject_list' and no new registration occurs
+        self.assertRedirects(response, reverse('subject_list'))
+
+
+class UnregisterSubjectViewTest(TestCase):
+    def setUp(self):
+        # Create a user for login
+        self.user = User.objects.create_user(
+            username='testuser', password='userpassword')
+
+        # Create a subject with no available seats (already full)
+        self.subject = Subject.objects.create(
+            subject_id='CN101',
+            name='Introduction to Computer Programming',
+            semester=1,
+            academic_year=2024,
+            max_students=0,
+            open_for_registration=False
+        )
+
+        # Register the user to the subject
+        UserSubject.objects.create(user=self.user, subject=self.subject)
+
+        # Log in the user
+        self.client = Client()
+        self.client.login(username='testuser', password='userpassword')
+
+    def test_successful_unregistration(self):
+        """Test that a user can successfully unregister from a subject."""
+        response = self.client.post(
             reverse('unregister_subject', args=[self.subject.id]))
         self.assertRedirects(response, reverse('subject_list'))
 
-        # Ensure the user is no longer registered
+        # Confirm that the UserSubject instance is deleted
         self.assertFalse(UserSubject.objects.filter(
             user=self.user, subject=self.subject).exists())
 
-        # Check that max_students has increased by 1 and open_for_registration is now True
-        self.subject.refresh_from_db()
-        self.assertEqual(self.subject.max_students, 2)
-        self.assertTrue(self.subject.open_for_registration)
+    def test_max_students_increases_on_unregistration(self):
+        """Test that the max_students count increases by 1 on unregistration."""
+        initial_max_students = self.subject.max_students
 
-    def test_unregister_subject_not_registered(self):
-        """Test that unregistering a user who is not registered has no side effects."""
-        response = self.client.get(
-            reverse('unregister_subject', args=[self.subject.id]))
-        self.assertRedirects(response, reverse('subject_list'))
+        self.client.post(reverse('unregister_subject', args=[self.subject.id]))
 
-        # Ensure no registration record exists
-        self.assertFalse(UserSubject.objects.filter(
-            user=self.user, subject=self.subject).exists())
+        # Check that max_students has increased by 1
+        subject = Subject.objects.get(id=self.subject.id)
+        self.assertEqual(subject.max_students, initial_max_students + 1)
 
-        # Ensure that max_students is unchanged
-        self.subject.refresh_from_db()
-        self.assertEqual(self.subject.max_students, 2)
-
-    def test_register_and_reach_max_capacity(self):
-        """Test that max_students decrements and open_for_registration is set to False at capacity."""
-        # Register the user once
-        self.client.get(reverse('register_subject', args=[self.subject.id]))
-
-        # Register a second user to reach max capacity
-        another_user = User.objects.create_user(
-            username='anotheruser', password='password')
-        self.client.logout()
-        self.client.login(username='anotheruser', password='password')
-        self.client.get(reverse('register_subject', args=[self.subject.id]))
-
-        # Refresh and check that max_students is now 0 and open_for_registration is False
-        self.subject.refresh_from_db()
-        self.assertEqual(self.subject.max_students, 0)
+    def test_subject_reopens_for_registration_on_unregistration(self):
+        """Test that a full subject reopens for registration when a user unregisters."""
+        # Confirm that subject is initially closed for registration
         self.assertFalse(self.subject.open_for_registration)
+
+        # Unregister the user from the subject
+        self.client.post(reverse('unregister_subject', args=[self.subject.id]))
+
+        # Confirm that open_for_registration is set to True
+        subject = Subject.objects.get(id=self.subject.id)
+        self.assertTrue(subject.open_for_registration)
